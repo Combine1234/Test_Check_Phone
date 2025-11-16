@@ -2,137 +2,220 @@
 <html lang="th">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>ตรวจสอบประเภทโทรศัพท์</title>
   <style>
-    body {
-      font-family: system-ui, sans-serif;
-      background: #f7fafc;
-      padding: 20px;
-      color: #1a202c;
-    }
-    h1 {
-      font-size: 28px;
-      margin-bottom: 20px;
-      text-align: center;
-    }
-    .box {
-      max-width: 600px;
-      margin: 0 auto;
-      background: white;
-      padding: 20px;
-      border-radius: 12px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-    }
-    input {
-      width: 100%;
-      padding: 12px;
-      border-radius: 8px;
-      border: 1px solid #cbd5e0;
-      margin-bottom: 12px;
-      font-size: 18px;
-    }
-    button {
-      width: 100%;
-      padding: 12px;
-      background: #3182ce;
-      color: white;
-      border: none;
-      font-size: 18px;
-      border-radius: 8px;
-      cursor: pointer;
-    }
-    button:hover {
-      background: #2b6cb0;
-    }
-    .result {
-      margin-top: 20px;
-      padding: 15px;
-      background: #edf2f7;
-      border-radius: 8px;
-      font-size: 18px;
-    }
-    .loading {
-      margin-top: 10px;
-      text-align: center;
-      color: #718096;
-    }
+    body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; padding: 20px; background:#f7fafc; color:#0f172a; }
+    .card { background: white; border-radius: 12px; box-shadow: 0 6px 18px rgba(2,6,23,0.08); padding: 18px; max-width: 800px; margin: 12px auto; }
+    h1 { font-size: 20px; margin: 0 0 8px 0; }
+    p.lead { margin: 0 0 16px 0; color: #475569; }
+    button { background:#0369a1; color:white; border:0; padding:10px 14px; border-radius:8px; cursor:pointer; font-weight:600; }
+    button.secondary { background:#e2e8f0; color:#0f172a; margin-left:8px; }
+    pre { background:#0b1220; color:#e6eef8; padding:12px; border-radius:8px; overflow:auto; font-size:13px; }
+    table { width:100%; border-collapse:collapse; margin-top:12px; }
+    td{ padding:8px 6px; border-top:1px solid #eef2f7; vertical-align:top; }
+    .key{ width:32%; color:#334155; font-weight:600; }
+    .value{ color:#0f172a; word-break:break-word; }
+    .small { font-size:13px; color:#64748b; margin-top:8px; }
   </style>
 </head>
 <body>
+  <div class="card">
+    <h1>ตรวจสอบประเภทโทรศัพท์ (Device Detector)</h1>
+    <p class="lead">
+      กดปุ่มเพื่อดึงข้อมูลอุปกรณ์ของคุณ พร้อมบันทึกไปยัง Google Sheet อัตโนมัติ
+    </p>
 
-<h1>ตรวจสอบประเภทโทรศัพท์</h1>
+    <div>
+      <button id="detectBtn">ตรวจสอบอุปกรณ์ตอนนี้</button>
+      <button id="copyBtn" class="secondary">คัดลอกเป็นข้อความ</button>
+    </div>
 
-<div class="box">
-  <input id="searchInput" type="text" placeholder="ใส่หมายเลข / รุ่นโทรศัพท์ เช่น A1234, iPhone 11" />
-  <button onclick="searchData()">ค้นหา</button>
-  <div class="loading" id="loading" style="display:none;">กำลังโหลดข้อมูล...</div>
-  <div id="result" class="result" style="display:none;"></div>
-</div>
+    <div id="result" style="margin-top:14px; display:none;">
+      <table>
+        <tr><td class="key">ประเภทอุปกรณ์</td><td class="value" id="deviceType"></td></tr>
+        <tr><td class="key">ระบบปฏิบัติการ</td><td class="value" id="os"></td></tr>
+        <tr><td class="key">ยี่ห้อ/รุ่น</td><td class="value" id="model"></td></tr>
+        <tr><td class="key">User Agent</td><td class="value"><small id="ua"></small></td></tr>
+        <tr><td class="key">Client Hints</td><td class="value"><small id="clientHints"></small></td></tr>
+        <tr><td class="key">ขนาดหน้าจอ</td><td class="value" id="screen"></td></tr>
+        <tr><td class="key">สัมผัส / Touch</td><td class="value" id="touch"></td></tr>
+      </table>
+
+      <div class="small">หมายเหตุ: เบราว์เซอร์บางตัวอาจซ่อนข้อมูลรุ่นโทรศัพท์</div>
+
+      <pre id="rawJson" style="margin-top:12px; display:none;"></pre>
+    </div>
+  </div>
 
 <script>
-  const CSV_URL =
-    "https://docs.google.com/spreadsheets/d/1DLWBVscIyFPPqE2rE-A80NGjzOqgfHZBGscmPOOzxVo/export?format=csv";
+// 🔻 ใส่ URL Google Script ของคุณที่นี่
+const GOOGLE_SHEET_API = "https://script.google.com/macros/s/AKfycbwL_VjdFYHMkDlyzICH9UAqDNdibAZ-fP4fe7o_PrjTjxgYlEKGlszzmu8D3eV3xwgA7g/exec";
 
-  let phoneData = [];
+async function detectDevice() {
+  const out = {};
 
-  // โหลด Google Sheet CSV
-  async function loadCSV() {
-    document.getElementById("loading").style.display = "block";
+  out.userAgent = navigator.userAgent || "ไม่พบ userAgent";
+  out.platform = navigator.platform || "ไม่ระบุ";
+  out.screen = {
+    width: window.screen.width,
+    height: window.screen.height,
+    innerWidth: window.innerWidth,
+    innerHeight: window.innerHeight,
+    devicePixelRatio: window.devicePixelRatio || 1
+  };
+  out.touchSupported = (('ontouchstart' in window) || navigator.maxTouchPoints > 0);
 
-    const res = await fetch(CSV_URL);
-    const text = await res.text();
-
-    const rows = text.trim().split("\n").map(r => r.split(","));
-
-    const headers = rows[0];
-    const entries = rows.slice(1);
-
-    phoneData = entries.map(row => {
-      let obj = {};
-      headers.forEach((h, i) => {
-        obj[h.trim()] = row[i] ? row[i].trim() : "";
-      });
-      return obj;
-    });
-
-    document.getElementById("loading").style.display = "none";
+  out.hints = {};
+  if (navigator.userAgentData && navigator.userAgentData.getHighEntropyValues) {
+    try {
+      const high = await navigator.userAgentData.getHighEntropyValues(
+        ['platform','platformVersion','brands','model','mobile','uaFullVersion']
+      );
+      out.hints = high;
+    } catch (e) {
+      out.hintsError = e.toString();
+    }
+  } else {
+    out.hints = null;
   }
 
-  // ค้นหาข้อมูล
-  function searchData() {
-    let q = document.getElementById("searchInput").value.trim().toLowerCase();
-    const resultBox = document.getElementById("result");
+  const ua = out.userAgent.toLowerCase();
 
-    if (q === "") {
-      resultBox.style.display = "block";
-      resultBox.innerHTML = "กรุณากรอกข้อมูลก่อนค้นหา";
-      return;
-    }
-
-    const found = phoneData.filter(item =>
-      Object.values(item).some(v => v.toLowerCase().includes(q))
-    );
-
-    if (found.length === 0) {
-      resultBox.style.display = "block";
-      resultBox.innerHTML = "ไม่พบข้อมูล";
-      return;
-    }
-
-    let html = "";
-    found.forEach(item => {
-      html += `<b>รุ่น:</b> ${item["model"] || "-"}<br>
-               <b>ประเภท:</b> ${item["type"] || "-"}<br>
-               <b>ปี:</b> ${item["year"] || "-"}<br><hr>`;
-    });
-
-    resultBox.style.display = "block";
-    resultBox.innerHTML = html;
+  // ประเภทอุปกรณ์
+  if (/mobile|iphone|ipod|android.*mobile|windows phone/.test(ua) || (out.hints && out.hints.mobile)) {
+    out.deviceType = 'มือถือ (Mobile)';
+  } else if (/tablet|ipad|android(?!.*mobile)/.test(ua)) {
+    out.deviceType = 'แท็บเล็ต (Tablet)';
+  } else {
+    out.deviceType = 'เดสก์ท็อป / อื่นๆ';
   }
 
-  loadCSV();
+  // OS
+  let os = 'ไม่ทราบ';
+  if (/android/i.test(ua)) os = 'Android';
+  else if (/iphone|ipad|ipod/i.test(ua)) os = 'iOS / iPadOS';
+  else if (/mac os/i.test(ua)) os = 'macOS';
+  else if (/windows nt/i.test(ua)) os = 'Windows';
+  else if (/linux/i.test(ua)) os = 'Linux';
+
+  out.os = os;
+
+  // Model
+  let model = out.hints?.model || null;
+
+  if (!model) {
+    const androidModel = out.userAgent.match(/\b(SM-[A-Z0-9]+|Pixel\s?[0-9A-Za-z\-]+|HUAWEI|HONOR|Mi[\s\-]?[0-9]+|Redmi|Vivo|OPPO|Poco|Realme)[\/\s\-]?[A-Za-z0-9]*\b/i);
+    if (androidModel) model = androidModel[0];
+  }
+
+  if (!model) model = 'ไม่สามารถระบุรุ่นได้';
+
+  let brands = null;
+  if (navigator.userAgentData?.brands) {
+    brands = navigator.userAgentData.brands.map(b => `${b.brand} v${b.version}`).join(' | ');
+  }
+
+  return {
+    deviceType: out.deviceType,
+    os: out.os,
+    model,
+    userAgent: out.userAgent,
+    clientHints: out.hints,
+    brands,
+    screen: out.screen,
+    touchSupported: out.touchSupported,
+    raw: out
+  };
+}
+
+// 🔻 ส่งเข้ากูเกิลชีต
+async function sendToGoogleSheet(info) {
+  if (!GOOGLE_SHEET_API.startsWith("https://script.google.com")) {
+    console.warn("ยังไม่ได้ใส่ Google Script URL");
+    return;
+  }
+
+  const payload = {
+    Timestamp: new Date().toLocaleString("th-TH"),
+    DeviceType: info.deviceType,
+    OS: info.os,
+    Model: info.model,
+    Screen: `${info.screen.width}×${info.screen.height} (inner ${info.screen.innerWidth}×${info.screen.innerHeight}) DPR ${info.screen.devicePixelRatio}`,
+    Touch: info.touchSupported ? "รองรับการสัมผัส" : "ไม่รองรับสัมผัส",
+    UserAgent: info.userAgent,
+    ClientHints: JSON.stringify(info.clientHints)
+  };
+
+  try {
+    await fetch(GOOGLE_SHEET_API, {
+      method: "POST",
+      mode: "no-cors",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+  } catch (err) {
+    console.error("ส่งข้อมูลผิดพลาด:", err);
+  }
+}
+
+// --------------- UI Events ---------------
+const detectBtn = document.getElementById('detectBtn');
+const copyBtn = document.getElementById('copyBtn');
+const resultEl = document.getElementById('result');
+const deviceTypeEl = document.getElementById('deviceType');
+const osEl = document.getElementById('os');
+const modelEl = document.getElementById('model');
+const uaEl = document.getElementById('ua');
+const clientHintsEl = document.getElementById('clientHints');
+const screenEl = document.getElementById('screen');
+const touchEl = document.getElementById('touch');
+const rawJsonEl = document.getElementById('rawJson');
+
+detectBtn.addEventListener('click', async () => {
+  detectBtn.disabled = true;
+  detectBtn.textContent = 'กำลังตรวจสอบ...';
+
+  try {
+    const info = await detectDevice();
+
+    deviceTypeEl.textContent = info.deviceType;
+    osEl.textContent = info.os;
+    modelEl.textContent = info.model;
+    uaEl.textContent = info.userAgent;
+
+    clientHintsEl.textContent = info.brands || JSON.stringify(info.clientHints || {});
+    screenEl.textContent = `${info.screen.width}×${info.screen.height} (inner ${info.screen.innerWidth}×${info.screen.innerHeight}) DPR ${info.screen.devicePixelRatio}`;
+    touchEl.textContent = info.touchSupported ? 'รองรับการสัมผัส' : 'ไม่รองรับสัมผัส';
+
+    rawJsonEl.style.display = 'block';
+    rawJsonEl.textContent = JSON.stringify(info, null, 2);
+
+    resultEl.style.display = 'block';
+
+    // ส่งเข้า Google Sheet ตามคอลัมน์ที่คุณให้
+    sendToGoogleSheet(info);
+
+  } finally {
+    detectBtn.disabled = false;
+    detectBtn.textContent = 'ตรวจสอบอุปกรณ์ตอนนี้';
+  }
+});
+
+copyBtn.addEventListener('click', () => {
+  if (resultEl.style.display === 'none') return alert("ยังไม่มีผลลัพธ์");
+
+  const txt =
+    `ประเภทอุปกรณ์: ${deviceTypeEl.textContent}\n` +
+    `ระบบปฏิบัติการ: ${osEl.textContent}\n` +
+    `รุ่น: ${modelEl.textContent}\n` +
+    `ขนาดหน้าจอ: ${screenEl.textContent}\n` +
+    `User Agent: ${uaEl.textContent}`;
+
+  navigator.clipboard.writeText(txt);
+  copyBtn.textContent = "คัดลอกแล้ว ✓";
+  setTimeout(()=> copyBtn.textContent = "คัดลอกเป็นข้อความ", 1500);
+});
 </script>
-
 </body>
 </html>
