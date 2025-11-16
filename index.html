@@ -49,7 +49,9 @@
   </div>
 
 <script>
-const GOOGLE_SHEET_API = "https://script.google.com/macros/s/AKfycbz7FCNfQcjqrtDOoyGJGAIref8qRCTT07oMK2MxWFMfO3idxMBC7EkzBokXTOCk6xfwSQ/exec";
+
+// 🔥 เปลี่ยนเป็น SheetBest API
+const SHEETBEST_API = "https://api.sheetbest.com/sheets/d6b0b77e-c6c1-42f5-bffd-e0954cf1f1d2";
 
 // ----------- Device Detection ------------
 async function detectDevice() {
@@ -126,13 +128,8 @@ async function detectDevice() {
   };
 }
 
-// ----------- Send to Google Sheet ------------
-async function sendToGoogleSheet(info) {
-  if (!GOOGLE_SHEET_API.startsWith("https://script.google.com")) {
-    console.warn("ยังไม่ได้ใส่ Google Script URL");
-    return;
-  }
-
+// ----------- Send to SheetBest ------------
+async function sendToGoogleSheet(info) {  // ไม่ต้องแก้ชื่อ function ก็ได้
   const payload = {
     DeviceType: info.deviceType,
     OS: info.os,
@@ -144,9 +141,8 @@ async function sendToGoogleSheet(info) {
   };
 
   try {
-    await fetch(GOOGLE_SHEET_API, {
+    await fetch(SHEETBEST_API, {
       method: "POST",
-      mode: "no-cors",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload)
     });
